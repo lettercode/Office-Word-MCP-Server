@@ -804,6 +804,45 @@ def register_tools():
 
     @mcp.tool(
         annotations=ToolAnnotations(
+            title="Add Paragraph With Track Changes",
+            destructiveHint=True,
+        ),
+    )
+    def add_paragraph_with_track_changes(filename: str, text: str, style: str = None, author: str = None):
+        """Append a new paragraph to the document wrapped in a tracked insertion (<w:ins>).
+        Use this instead of add_paragraph when the document is under track-changes review."""
+        return track_changes_tools.add_paragraph_with_track_changes(filename, text, style, author)
+
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            title="Add Heading With Track Changes",
+            destructiveHint=True,
+        ),
+    )
+    def add_heading_with_track_changes(filename: str, text: str, level: int = 1, author: str = None):
+        """Append a new heading to the document wrapped in a tracked insertion (<w:ins>).
+        level is 1-9 and maps to Word's Heading N style."""
+        return track_changes_tools.add_heading_with_track_changes(filename, text, level, author)
+
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            title="Insert Line Or Paragraph Near Text With Track Changes",
+            destructiveHint=True,
+        ),
+    )
+    def insert_line_or_paragraph_near_text_with_track_changes(
+        filename: str, anchor_text: str, text_to_insert: str,
+        position: str = "after", author: str = None,
+    ):
+        """Insert a new paragraph before/after the paragraph whose text contains anchor_text,
+        wrapped in a tracked insertion (<w:ins>). Anchor matching is paragraph-text (cross-run).
+        position is 'after' (default) or 'before'."""
+        return track_changes_tools.insert_line_or_paragraph_near_text_with_track_changes(
+            filename, anchor_text, text_to_insert, position, author
+        )
+
+    @mcp.tool(
+        annotations=ToolAnnotations(
             title="List Revisions",
             readOnlyHint=True,
         ),

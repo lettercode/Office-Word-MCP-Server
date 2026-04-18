@@ -537,3 +537,183 @@ async def count_tracked_matches(
                 doc.close(cleanup=True)
             except Exception:
                 pass
+
+
+# ── Bug 5: tracked variants for plain content-insertion tools ────────────
+
+from datetime import datetime, timezone
+from docx import Document as PyDocxDocument
+from docx.oxml.ns import qn
+from lxml import etree
+
+
+def _next_ins_id(body) -> int:
+    """Pick an unused w:id for a new <w:ins> by scanning existing w:ins/w:del."""
+    highest = -1
+    for el in body.iter():
+        if el.tag in (qn("w:ins"), qn("w:del")):
+            raw = el.get(qn("w:id"))
+            if raw is not None:
+                try:
+                    highest = max(highest, int(raw))
+                except ValueError:
+                    pass
+    return highest + 1
+
+
+def _build_tracked_paragraph(text: str, author: str, style_id=None):
+    """Construct a <w:p> whose run is wrapped in <w:ins>.
+
+    w:id on the w:ins is a placeholder (0); caller must set a body-unique
+    value before inserting into the document."""
+    _tmp_root = etree.Element(qn("w:root"))
+    p = etree.SubElement(_tmp_root, qn("w:p"))
+    _tmp_root.remove(p)
+    if style_id:
+        pPr = etree.SubElement(p, qn("w:pPr"))
+        pStyle = etree.SubElement(pPr, qn("w:pStyle"))
+        pStyle.set(qn("w:val"), style_id)
+    ins = etree.SubElement(p, qn("w:ins"))
+    ins.set(qn("w:id"), "0")
+    ins.set(qn("w:author"), author)
+    ins.set(qn("w:date"), datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
+    r = etree.SubElement(ins, qn("w:r"))
+    t = etree.SubElement(r, qn("w:t"))
+    t.set(qn("xml:space"), "preserve")
+    t.text = text
+    return p
+
+
+def _resolve_heading_style_id(doc, level: int) -> str:
+    target_name = f"Heading {level}"
+    for style in doc.styles:
+        if style.name == target_name:
+            return style.style_id
+    return f"Heading{level}"
+
+
+async def add_paragraph_with_track_changes(
+    filename: str,
+    text: str,
+    style: Optional[str] = None,
+    author: str = None,
+) -> str:
+    """Append a paragraph wrapped in <w:ins> so it appears as a tracked insertion."""
+    filename = ensure_docx_extension(filename)
+    if not os.path.exists(filename):
+        return json.dumps({"success": False, "error": f"Document {filename} does not exist"})
+    writeable, error = check_file_writeable(filename)
+    if not writeable:
+        return json.dumps({"success": False, "error": error})
+    if not text:
+        return json.dumps({"success": False, "error": "text cannot be empty"})
+
+    author = _get_author(author)
+    try:
+        doc = PyDocxDocument(filename)
+        body = doc.element.body
+        style_id = None
+        if style:
+            for s in doc.styles:
+                if s.name == style:
+                    style_id = s.style_id
+                    break
+            if style_id is None:
+                style_id = style
+        new_p = _build_tracked_paragraph(text, author, style_id=style_id)
+        new_p.find(qn("w:ins")).set(qn("w:id"), str(_next_ins_id(body)))
+        sect_pr = body.find(qn("w:sectPr"))
+        if sect_pr is not None:
+            sect_pr.addprevious(new_p)
+        else:
+            body.append(new_p)
+        doc.save(filename)
+        return json.dumps({"success": True, "text": text, "author": author, "style": style})
+    except Exception as e:
+        return json.dumps({"success": False, "error": f"Failed to add tracked paragraph: {str(e)}"})
+
+
+async def add_heading_with_track_changes(
+    filename: str,
+    text: str,
+    level: int = 1,
+    author: str = None,
+) -> str:
+    """Append a heading wrapped in <w:ins>. level is 1-9 (maps to Heading N)."""
+    filename = ensure_docx_extension(filename)
+    if not os.path.exists(filename):
+        return json.dumps({"success": False, "error": f"Document {filename} does not exist"})
+    writeable, error = check_file_writeable(filename)
+    if not writeable:
+        return json.dumps({"success": False, "error": error})
+    if not text:
+        return json.dumps({"success": False, "error": "text cannot be empty"})
+    if not (1 <= level <= 9):
+        return json.dumps({"success": False, "error": "level must be between 1 and 9"})
+
+    author = _get_author(author)
+    try:
+        doc = PyDocxDocument(filename)
+        body = doc.element.body
+        style_id = _resolve_heading_style_id(doc, level)
+        new_p = _build_tracked_paragraph(text, author, style_id=style_id)
+        new_p.find(qn("w:ins")).set(qn("w:id"), str(_next_ins_id(body)))
+        sect_pr = body.find(qn("w:sectPr"))
+        if sect_pr is not None:
+            sect_pr.addprevious(new_p)
+        else:
+            body.append(new_p)
+        doc.save(filename)
+        return json.dumps({"success": True, "text": text, "level": level, "author": author})
+    except Exception as e:
+        return json.dumps({"success": False, "error": f"Failed to add tracked heading: {str(e)}"})
+
+
+async def insert_line_or_paragraph_near_text_with_track_changes(
+    filename: str,
+    anchor_text: str,
+    text_to_insert: str,
+    position: str = "after",
+    author: str = None,
+) -> str:
+    """Insert a new tracked paragraph before/after the paragraph whose text
+    contains anchor_text. Anchor matching is paragraph-text (cross-run)."""
+    filename = ensure_docx_extension(filename)
+    if not os.path.exists(filename):
+        return json.dumps({"success": False, "error": f"Document {filename} does not exist"})
+    writeable, error = check_file_writeable(filename)
+    if not writeable:
+        return json.dumps({"success": False, "error": error})
+    if not anchor_text:
+        return json.dumps({"success": False, "error": "anchor_text cannot be empty"})
+    if position not in ("after", "before"):
+        return json.dumps({"success": False, "error": "position must be 'after' or 'before'"})
+
+    author = _get_author(author)
+    try:
+        doc = PyDocxDocument(filename)
+        body = doc.element.body
+        anchor_p = None
+        for p in doc.paragraphs:
+            if anchor_text in p.text:
+                anchor_p = p._element
+                break
+        if anchor_p is None:
+            return json.dumps({"success": False, "error": f"Anchor text '{anchor_text}' not found in document"})
+
+        new_p = _build_tracked_paragraph(text_to_insert, author)
+        new_p.find(qn("w:ins")).set(qn("w:id"), str(_next_ins_id(body)))
+        if position == "after":
+            anchor_p.addnext(new_p)
+        else:
+            anchor_p.addprevious(new_p)
+        doc.save(filename)
+        return json.dumps({
+            "success": True,
+            "inserted": text_to_insert,
+            "position": position,
+            "anchor_text": anchor_text,
+            "author": author,
+        })
+    except Exception as e:
+        return json.dumps({"success": False, "error": f"Failed to insert tracked line: {str(e)}"})
