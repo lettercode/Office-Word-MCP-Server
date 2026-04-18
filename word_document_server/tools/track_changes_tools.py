@@ -13,6 +13,7 @@ from docx_editor.exceptions import TextNotFoundError
 
 from word_document_server.utils.file_utils import ensure_docx_extension, check_file_writeable
 from word_document_server.utils.docx_zip_utils import strip_meta_json
+from word_document_server.utils.anchor_utils import normalize_paragraph_runs_for_anchor
 
 
 def _get_author(author: Optional[str]) -> str:
@@ -69,6 +70,10 @@ async def replace_with_track_changes(
         return json.dumps({"success": False, "error": "find_text cannot be empty"})
 
     author = _get_author(author)
+    # Split runs so that a cross-run find_text survives docx-editor's
+    # single-run matcher. If the text is truly absent, fall through to the
+    # existing "no matches" response.
+    normalize_paragraph_runs_for_anchor(filename, find_text)
     doc = None
     try:
         doc = _open_tracked_document(filename, author)
@@ -194,6 +199,7 @@ async def insert_after_with_track_changes(
         return json.dumps({"success": False, "error": "anchor_text cannot be empty"})
 
     author = _get_author(author)
+    normalize_paragraph_runs_for_anchor(filename, anchor_text)
     doc = None
     try:
         doc = _open_tracked_document(filename, author)
@@ -244,6 +250,7 @@ async def insert_before_with_track_changes(
         return json.dumps({"success": False, "error": "anchor_text cannot be empty"})
 
     author = _get_author(author)
+    normalize_paragraph_runs_for_anchor(filename, anchor_text)
     doc = None
     try:
         doc = _open_tracked_document(filename, author)

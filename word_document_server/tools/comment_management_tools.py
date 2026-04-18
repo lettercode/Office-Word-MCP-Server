@@ -17,6 +17,7 @@ from word_document_server.utils.docx_zip_utils import (
     strip_meta_json,
     strip_orphan_comments_extensible,
 )
+from word_document_server.utils.anchor_utils import normalize_paragraph_runs_for_anchor
 
 
 def _get_author(author: Optional[str]) -> str:
@@ -71,6 +72,10 @@ async def add_comment(
         return json.dumps({"success": False, "error": "comment_text cannot be empty"})
 
     author = _get_author(author)
+    # Normalize runs so a cross-run anchor resolves inside docx-editor's
+    # single-run matcher. Returns False if the anchor is genuinely absent.
+    if not normalize_paragraph_runs_for_anchor(filename, anchor_text):
+        return json.dumps({"success": False, "error": f"Anchor text '{anchor_text}' not found in document"})
     doc = None
     try:
         doc = _open_tracked_document(filename, author)
