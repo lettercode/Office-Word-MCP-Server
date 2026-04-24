@@ -5,7 +5,7 @@ import json
 import unicodedata
 import re
 import logging
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 from docx import Document
 from docx.oxml.table import CT_Tbl
 from docx.oxml.text.paragraph import CT_P
@@ -298,6 +298,50 @@ def _replace_in_paragraph(para, old_text, new_text):
 
         count += 1
     return count
+
+
+_OUTLINE_PREFIX_RE = re.compile(r"^(#{1,6})\s+(.+)$")
+
+
+def diagnose_outline_prefix_miss(doc, find_text: str) -> Optional[str]:
+    """Return a hint when `find_text` looks like a markdown outline prefix
+    (e.g. '## Performance') but no paragraph contains the literal hashes —
+    and a heading-styled paragraph *does* carry the suffix as its text.
+
+    Heading paragraphs in a .docx store only the text; the level is encoded
+    in the style (``Heading 1``..``Heading 6``). Callers who copy outline
+    rows from ``get_document_outline`` can paste back the ``## `` prefix
+    and get a silent no-match. This helper surfaces that specific mismatch.
+
+    Returns None when no heading paragraph matches the suffix.
+    """
+    m = _OUTLINE_PREFIX_RE.match(find_text)
+    if not m:
+        return None
+    hashes, suffix = m.group(1), m.group(2).strip()
+    if not suffix:
+        return None
+    for i, para in enumerate(doc.paragraphs):
+        if para.text != suffix:
+            continue
+        style_name = para.style.name if para.style else ""
+        if not style_name.startswith("Heading "):
+            continue
+        hint = (
+            f"Hint: heading paragraphs store text without '#' prefix. "
+            f"Found '{suffix}' at paragraph index {i} (style: {style_name}). "
+            f"Retry with find_text='{suffix}' or use replace_paragraph_text."
+        )
+        try:
+            heading_level = int(style_name.split()[-1])
+        except (ValueError, IndexError):
+            heading_level = None
+        if heading_level is not None and heading_level != len(hashes):
+            hint += (
+                f" (note: outline hash count {len(hashes)} does not match {style_name})"
+            )
+        return hint
+    return None
 
 
 def find_and_replace_text(doc, old_text, new_text):

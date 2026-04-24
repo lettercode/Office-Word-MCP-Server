@@ -5,7 +5,9 @@
       "Bash(uv run pytest:*)",
       "Bash(git add:*)",
       "Bash(git commit -m \"$\\(cat <<''EOF''\nfeat: add include_outline to get_document_info and batch find_texts_in_document \\(Issues 5, 6\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(git fetch:*)",
+      "Bash(git merge:*)"
     ]
   }
 }
