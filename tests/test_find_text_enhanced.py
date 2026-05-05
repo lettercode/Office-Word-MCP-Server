@@ -90,3 +90,29 @@ class TestFindTextIncludeFullParagraph:
         result = find_text(path, "hello", match_case=False, include_paragraph_text=True)
         assert result["total_count"] == 1
         assert result["occurrences"][0]["text"] == "Hello World"
+
+
+class TestFindTextHyperlinkAware:
+    """Bug B Symptom 3: find_text must locate hyperlink-embedded text.
+
+    The hyperlink_docx fixture seeds 5 occurrences of 'FOO' across plain
+    paragraphs, single-run hyperlinks, multi-run hyperlinks, plain trailing
+    paragraphs, and a table cell. Before the fix, find_text only saw 3.
+    """
+
+    def test_finds_all_occurrences_including_hyperlinks(self, hyperlink_docx):
+        result = find_text(hyperlink_docx, "FOO")
+        assert result["total_count"] == 5
+
+    def test_full_text_view_includes_hyperlink_display(self, hyperlink_docx):
+        result = find_text(hyperlink_docx, "FOO", include_paragraph_text=True)
+        full_texts = [occ.get("text") for occ in result["occurrences"]]
+        # The hyperlink-bearing paragraph's full text must include "FOO bar".
+        assert any(t and "FOO bar" in t for t in full_texts)
+        # The cross-run hyperlink paragraph's full text must include "FOO baz".
+        assert any(t and "FOO baz" in t for t in full_texts)
+
+    def test_can_locate_hyperlink_only_substring(self, hyperlink_docx):
+        # 'bar' only appears inside a hyperlink. Pre-fix this returned 0.
+        result = find_text(hyperlink_docx, "bar")
+        assert result["total_count"] == 1

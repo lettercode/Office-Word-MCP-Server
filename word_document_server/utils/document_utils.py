@@ -11,6 +11,7 @@ from docx.oxml.table import CT_Tbl
 from docx.oxml.text.paragraph import CT_P
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
+from docx.text.run import Run
 
 logger = logging.getLogger(__name__)
 
@@ -254,50 +255,114 @@ def find_paragraph_by_text(doc, text, partial_match=False):
     return matching_paragraphs
 
 
-def _replace_in_paragraph(para, old_text, new_text):
-    """Replace old_text with new_text in a paragraph, handling cross-run matches.
+_W_HYPERLINK = qn('w:hyperlink')
 
-    Returns the number of replacements made in this paragraph.
+
+def iter_paragraph_runs_deep(para):
+    """Yield ``Run`` objects wrapping every ``<w:r>`` descendant of the
+    paragraph element in document order — including runs nested inside
+    ``<w:hyperlink>``, ``<w:sdt>``, ``<w:smartTag>``, ``<w:fldSimple>``,
+    ``<w:ins>``, ``<w:del>``. This is the right iterator for any tool that
+    needs to see *user-visible* text, since ``Paragraph.runs`` only returns
+    direct ``<w:r>`` children and silently skips hyperlink display text
+    (Bug B)."""
+    for r_elem in para._p.iter(qn('w:r')):
+        yield Run(r_elem, para)
+
+
+def paragraph_full_text(para):
+    """Concatenated text of every ``<w:r>`` descendant of the paragraph,
+    including hyperlink display text. Use this in preference to
+    ``Paragraph.text`` when the search must cover hyperlinks reliably across
+    python-docx versions."""
+    return "".join(r.text for r in iter_paragraph_runs_deep(para))
+
+
+def _run_is_inside_hyperlink(run_elem):
+    """Return True if any ancestor of ``run_elem`` is a ``<w:hyperlink>``."""
+    parent = run_elem.getparent()
+    while parent is not None:
+        if parent.tag == _W_HYPERLINK:
+            return True
+        parent = parent.getparent()
+    return False
+
+
+def _cleanup_empty_hyperlinks(para):
+    """Remove ``<w:hyperlink>`` elements whose visible text is now empty.
+
+    A search-and-replace operation that clears the entire display label of a
+    hyperlink leaves a zombie element behind: the link still exists in the
+    XML and the rels part, but its on-screen footprint is zero — it renders
+    as a clickable nothing. This helper drops such elements (Bug B
+    Symptom 2). The ``.rels`` entry is intentionally left in place; Word
+    tolerates orphan rels and rewriting the rels part safely is fragile.
     """
-    count = 0
-    while old_text in para.text:
-        full_text = para.text
-        start = full_text.find(old_text)
-        if start < 0:
-            break
-        end = start + len(old_text)
+    w_t = qn('w:t')
+    for hyper in list(para._p.iter(_W_HYPERLINK)):
+        text = "".join((t.text or "") for t in hyper.iter(w_t))
+        if text == "":
+            parent = hyper.getparent()
+            if parent is not None:
+                parent.remove(hyper)
 
-        # Build character-to-run map
-        runs = para.runs
-        if not runs:
-            break
-        char_map = []  # (run_index, offset_in_run)
-        for ri, run in enumerate(runs):
-            for ci in range(len(run.text)):
-                char_map.append((ri, ci))
 
-        if end > len(char_map):
-            break
+def _replace_in_paragraph(para, old_text, new_text):
+    """Replace ``old_text`` with ``new_text`` in a paragraph.
 
-        start_ri, start_ci = char_map[start]
+    Returns ``(count, in_hyperlink_count)`` where ``count`` is the total
+    replacements made in this paragraph and ``in_hyperlink_count`` is the
+    subset whose match started inside a ``<w:hyperlink>`` element.
+
+    The match scan runs once over the paragraph's full run text up front;
+    matches are then applied right-to-left so leftward offsets stay valid as
+    run text is rewritten. This guarantees termination even when
+    ``new_text`` contains ``old_text`` (which previously caused an infinite
+    loop in the naive ``while old_text in para.text`` implementation —
+    Bug A). The run iteration walks every ``<w:r>`` descendant including
+    those nested inside hyperlinks (Bug B).
+    """
+    if not old_text:
+        return 0, 0
+    runs = list(iter_paragraph_runs_deep(para))
+    if not runs:
+        return 0, 0
+    runs_text = "".join(r.text for r in runs)
+
+    positions = []
+    start_pos = 0
+    while True:
+        pos = runs_text.find(old_text, start_pos)
+        if pos < 0:
+            break
+        positions.append(pos)
+        start_pos = pos + len(old_text)
+    if not positions:
+        return 0, 0
+
+    char_map = []  # (run_index, offset_in_run) keyed by position in runs_text
+    for ri, run in enumerate(runs):
+        for ci in range(len(run.text)):
+            char_map.append((ri, ci))
+
+    in_hyperlink = 0
+    for pos in reversed(positions):
+        end = pos + len(old_text)
+        start_ri, start_ci = char_map[pos]
         end_ri, end_ci = char_map[end - 1]
-
+        if _run_is_inside_hyperlink(runs[start_ri]._element):
+            in_hyperlink += 1
         if start_ri == end_ri:
-            # Single-run replacement
             run = runs[start_ri]
             run.text = run.text[:start_ci] + new_text + run.text[end_ci + 1:]
         else:
-            # Multi-run replacement
-            # First run: keep prefix, add replacement text
             runs[start_ri].text = runs[start_ri].text[:start_ci] + new_text
-            # Intermediate runs: clear
             for ri in range(start_ri + 1, end_ri):
                 runs[ri].text = ""
-            # Last run: keep suffix after match
             runs[end_ri].text = runs[end_ri].text[end_ci + 1:]
 
-        count += 1
-    return count
+    _cleanup_empty_hyperlinks(para)
+    return len(positions), in_hyperlink
 
 
 _OUTLINE_PREFIX_RE = re.compile(r"^(#{1,6})\s+(.+)$")
@@ -347,7 +412,8 @@ def diagnose_outline_prefix_miss(doc, find_text: str) -> Optional[str]:
 def find_and_replace_text(doc, old_text, new_text):
     """
     Find and replace text throughout the document, skipping Table of Contents (TOC) paragraphs.
-    Handles text that spans multiple XML runs within a paragraph.
+    Handles text that spans multiple XML runs within a paragraph and reaches
+    text nested inside ``<w:hyperlink>`` elements (Bug B).
 
     Args:
         doc: Document object
@@ -355,30 +421,46 @@ def find_and_replace_text(doc, old_text, new_text):
         new_text: Text to replace with
 
     Returns:
-        Number of replacements made
+        Either an int total count (legacy callers) — see
+        :func:`find_and_replace_text_detailed` for the structured form. To
+        preserve the historical contract, this function returns just the
+        total. Callers needing the per-location breakdown should use the
+        ``_detailed`` variant.
     """
-    count = 0
+    total, _ = find_and_replace_text_detailed(doc, old_text, new_text)
+    return total
 
-    # Search in paragraphs
+
+def find_and_replace_text_detailed(doc, old_text, new_text):
+    """Same as :func:`find_and_replace_text` but returns
+    ``(total, in_hyperlink)`` so callers can disclose how many of the
+    matches lived inside hyperlink display text."""
+    total = 0
+    in_hyperlink_total = 0
+
+    def _is_toc(para):
+        return bool(para.style and para.style.name.startswith("TOC"))
+
     for para in doc.paragraphs:
-        # Skip TOC paragraphs
-        if para.style and para.style.name.startswith("TOC"):
+        if _is_toc(para):
             continue
-        if old_text in para.text:
-            count += _replace_in_paragraph(para, old_text, new_text)
+        if old_text in paragraph_full_text(para):
+            n, h = _replace_in_paragraph(para, old_text, new_text)
+            total += n
+            in_hyperlink_total += h
 
-    # Search in tables
     for table in doc.tables:
         for row in table.rows:
             for cell in row.cells:
                 for para in cell.paragraphs:
-                    # Skip TOC paragraphs in tables
-                    if para.style and para.style.name.startswith("TOC"):
+                    if _is_toc(para):
                         continue
-                    if old_text in para.text:
-                        count += _replace_in_paragraph(para, old_text, new_text)
+                    if old_text in paragraph_full_text(para):
+                        n, h = _replace_in_paragraph(para, old_text, new_text)
+                        total += n
+                        in_hyperlink_total += h
 
-    return count
+    return total, in_hyperlink_total
 
 
 def get_document_xml(doc_path: str) -> str:

@@ -93,6 +93,59 @@ def anchor_docx(tmp_path):
 
 
 @pytest.fixture
+def hyperlink_docx(tmp_path):
+    """Document covering every place hyperlink-embedded text can appear.
+
+    Layout (paragraph index → contents):
+      0: plain paragraph "FOO appears here"
+      1: paragraph "Visit " + hyperlink "FOO bar" (single run) → https://example.com/foo
+      2: paragraph "Cross-run " + hyperlink whose display is split across
+         two runs, "FOO" and " baz" → https://example.com/foobaz
+      3: paragraph "Tail FOO" (plain trailing match)
+      table[0,0]: "FOO in cell"
+    """
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+    from docx.opc.constants import RELATIONSHIP_TYPE as RT
+
+    path = tmp_path / "hyperlink_test.docx"
+    doc = Document()
+
+    # Para 0: plain text only
+    doc.add_paragraph("FOO appears here")
+
+    # Para 1: prefix + hyperlink with single display run
+    p1 = doc.add_paragraph("Visit ")
+    from word_document_server.core.hyperlinks import add_hyperlink_run
+    add_hyperlink_run(p1, "https://example.com/foo", "FOO bar")
+
+    # Para 2: prefix + hyperlink whose display is split into 2 runs
+    p2 = doc.add_paragraph("Cross-run ")
+    part = p2.part
+    r_id = part.relate_to("https://example.com/foobaz", RT.HYPERLINK, is_external=True)
+    hyper = OxmlElement("w:hyperlink")
+    hyper.set(qn("r:id"), r_id)
+    for chunk in ("FOO", " baz"):
+        r = OxmlElement("w:r")
+        t = OxmlElement("w:t")
+        t.set(qn("xml:space"), "preserve")
+        t.text = chunk
+        r.append(t)
+        hyper.append(r)
+    p2._p.append(hyper)
+
+    # Para 3: plain trailing match
+    doc.add_paragraph("Tail FOO")
+
+    # Table cell with FOO
+    table = doc.add_table(rows=1, cols=1)
+    table.cell(0, 0).text = "FOO in cell"
+
+    doc.save(str(path))
+    return str(path)
+
+
+@pytest.fixture
 def nbsp_anchor_docx(tmp_path):
     """Anchors with NBSP and ZWSP."""
     path = tmp_path / "nbsp_anchor_test.docx"

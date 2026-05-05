@@ -12,7 +12,7 @@ from docx.oxml.ns import qn
 from docx.shared import Inches, Pt, RGBColor
 
 from word_document_server.utils.file_utils import check_file_writeable, ensure_docx_extension
-from word_document_server.utils.document_utils import find_and_replace_text, insert_header_near_text, insert_numbered_list_near_text, insert_line_or_paragraph_near_text, replace_paragraph_block_below_header, replace_block_between_manual_anchors, replace_paragraph_text, replace_paragraph_range, delete_paragraph_range, diagnose_outline_prefix_miss
+from word_document_server.utils.document_utils import find_and_replace_text, find_and_replace_text_detailed, insert_header_near_text, insert_numbered_list_near_text, insert_line_or_paragraph_near_text, replace_paragraph_block_below_header, replace_block_between_manual_anchors, replace_paragraph_text, replace_paragraph_range, delete_paragraph_range, diagnose_outline_prefix_miss
 from word_document_server.core.styles import ensure_heading_style, ensure_table_style
 from word_document_server.core.hyperlinks import add_hyperlink_run, wrap_run_as_hyperlink
 
@@ -766,13 +766,15 @@ async def search_and_replace(filename: str, find_text: str, replace_text: str) -
     
     try:
         doc = Document(filename)
-        
-        # Perform find and replace
-        count = find_and_replace_text(doc, find_text, replace_text)
-        
+
+        count, in_hyperlink = find_and_replace_text_detailed(doc, find_text, replace_text)
+
         if count > 0:
             doc.save(filename)
-            return f"Replaced {count} occurrence(s) of '{find_text}' with '{replace_text}'."
+            base = f"Replaced {count} occurrence(s) of '{find_text}' with '{replace_text}'."
+            if in_hyperlink:
+                base += f" ({in_hyperlink} inside hyperlink display text)"
+            return base
         hint = diagnose_outline_prefix_miss(doc, find_text)
         if hint:
             return f"No occurrences of '{find_text}' found. {hint}"
