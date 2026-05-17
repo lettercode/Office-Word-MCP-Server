@@ -311,6 +311,15 @@ wheels = [
 ]
 
 [[package]]
+name = "defusedxml"
+version = "0.7.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/0f/d5/c66da9b79e5bdb124974bfe172b4daf3c984ebd9c2a06e2b8a4dc7331c72/defusedxml-0.7.1.tar.gz", hash = "sha256:1bb3032db185915b62d7c6209c5a8792be6a32ab2fedacc84e01b52c51aa3e69", size = 75520, upload-time = "2021-03-08T10:59:26.269Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/07/6c/aa3f2f849e01cb6a001cd8554a88d4c77c5c1a31c95bdf1cf9301e6d9ef4/defusedxml-0.7.1-py2.py3-none-any.whl", hash = "sha256:a352e7e428770286cc899e2542b6cdaedb2b4953ff269a210103ec58f6198a61", size = 25604, upload-time = "2021-03-08T10:59:24.45Z" },
+]
+
+[[package]]
 name = "diskcache"
 version = "5.6.3"
 source = { registry = "https://pypi.org/simple" }
@@ -344,6 +353,18 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/ae/b6/03bb70946330e88ffec97aefd3ea75ba575cb2e762061e0e62a213befee8/docutils-0.22.4.tar.gz", hash = "sha256:4db53b1fde9abecbb74d91230d32ab626d94f6badfc575d6db9194a49df29968", size = 2291750, upload-time = "2025-12-18T19:00:26.443Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/02/10/5da547df7a391dcde17f59520a231527b8571e6f46fc8efb02ccb370ab12/docutils-0.22.4-py3-none-any.whl", hash = "sha256:d0013f540772d1420576855455d050a2180186c91c15779301ac2ccb3eeb68de", size = 633196, upload-time = "2025-12-18T19:00:18.077Z" },
+]
+
+[[package]]
+name = "docx-editor"
+version = "0.2.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "defusedxml" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/c5/f6/18d2c68997cab5146bd552ba2a006c816913c4248179d6cf572d81847dcd/docx_editor-0.2.3.tar.gz", hash = "sha256:1f7f8bcfa395a574ec91809ba55fce0c1cdea66d7a2a0869b678d2aeba6a697a", size = 442084, upload-time = "2026-05-15T21:25:47.714Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/59/28/8898d943a35ba645b11a2161d224db13c0481dbe258e83337f96b64e79c6/docx_editor-0.2.3-py3-none-any.whl", hash = "sha256:2725c8c43628a513efdc1c92d243cd9490d2e7720e47e30b44c14a639d326438", size = 49072, upload-time = "2026-05-15T21:25:46.504Z" },
 ]
 
 [[package]]
@@ -817,6 +838,7 @@ name = "office-word-mcp-server"
 version = "1.1.11"
 source = { editable = "." }
 dependencies = [
+    { name = "docx-editor" },
     { name = "docx2pdf" },
     { name = "fastmcp" },
     { name = "msoffcrypto-tool" },
@@ -826,6 +848,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "docx-editor" },
     { name = "docx2pdf", specifier = ">=0.1.8" },
     { name = "fastmcp", specifier = ">=2.8.1" },
     { name = "msoffcrypto-tool", specifier = ">=5.4.2" },
@@ -1262,11 +1285,11 @@ wheels = [
 
 [[package]]
 name = "python-multipart"
-version = "0.0.22"
+version = "0.0.27"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/94/01/979e98d542a70714b0cb2b6728ed0b7c46792b695e3eaec3e20711271ca3/python_multipart-0.0.22.tar.gz", hash = "sha256:7340bef99a7e0032613f56dc36027b959fd3b30a787ed62d310e951f7c3a3a58", size = 37612, upload-time = "2026-01-25T10:15:56.219Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/69/9b/f23807317a113dc36e74e75eb265a02dd1a4d9082abc3c1064acd22997c4/python_multipart-0.0.27.tar.gz", hash = "sha256:9870a6a8c5a20a5bf4f07c017bd1489006ff8836cff097b6933355ee2b49b602", size = 44043, upload-time = "2026-04-27T10:51:26.649Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/1b/d0/397f9626e711ff749a95d96b7af99b9c566a9bb5129b8e4c10fc4d100304/python_multipart-0.0.22-py3-none-any.whl", hash = "sha256:2b2cd894c83d21bf49d702499531c7bafd057d730c201782048f7945d82de155", size = 24579, upload-time = "2026-01-25T10:15:54.811Z" },
+    { url = "https://files.pythonhosted.org/packages/99/78/4126abcbdbd3c559d43e0db7f7b9173fc6befe45d39a2856cc0b8ec2a5a6/python_multipart-0.0.27-py3-none-any.whl", hash = "sha256:6fccfad17a27334bd0193681b369f476eda3409f17381a2d65aa7df3f7275645", size = 29254, upload-time = "2026-04-27T10:51:24.997Z" },
 ]
 
 [[package]]
