@@ -151,7 +151,7 @@ git clone https://github.com/GongRzhe/Office-Word-MCP-Server.git
 cd Office-Word-MCP-Server
 
 # Install dependencies
-pip install -r requirements.txt
+uv sync --locked
 ```
 
 ### Using the Setup Script
