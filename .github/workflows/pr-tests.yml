@@ -33,25 +33,25 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt', '**/pyproject.toml') }}
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml', '**/uv.lock') }}
           restore-keys: |
             ${{ runner.os }}-pip-
 
-      - name: Install dependencies
+      - name: Install uv and project deps
         run: |
           python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then python -m pip install -r requirements.txt; else python -m pip install -e .; fi
-          python -m pip install pytest
+          python -m pip install uv
+          uv sync --locked
         env:
           PIP_NO_CACHE_DIR: "false"
 
-      - name: Run tests
+      - name: Run tests (via uv/uvx environment)
         env:
           CI: true
         run: |
           set -e
           mkdir -p pytest-results
-          pytest -q --maxfail=1 --disable-warnings --junitxml=pytest-results/junit.xml
+          uv run pytest -q --maxfail=1 --disable-warnings --junitxml=pytest-results/junit.xml
 
       - name: Upload test results
         if: always()
@@ -59,4 +59,4 @@ jobs:
         with:
           name: pytest-results
           path: pytest-results
-          retention-days: 30
+          retention-days: 7
