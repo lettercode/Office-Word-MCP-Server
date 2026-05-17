@@ -15,7 +15,7 @@ When preparing for multiple edits, you need to locate many different text string
 
 ## Repository Info
 
-- **Repository:** `C:\Users\brandon\.claude\mcp\Office-Word-MCP-Server`
+- **Repository:** `<REPO_ROOT>`
 - **Run commands with:** `uv run pytest` (or `python -m pytest` if uv unavailable)
 
 ## Architecture

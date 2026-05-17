@@ -42,10 +42,10 @@ conftest.py (Plan 0 — included as first step in each branch)
 
 ## Context to provide each agent
 
-Each agent prompt should include:
+Each agent prompt should include (prompt policy applied):
 
 1. **Repository info:**
-   - Path: `C:\Users\brandon\.claude\mcp\Office-Word-MCP-Server`
+   - Path: `<REPO_ROOT>`
    - Fork origin: `https://github.com/frastlin/Office-Word-MCP-Server.git`
    - Upstream: `https://github.com/GongRzhe/Office-Word-MCP-Server`
 
@@ -70,31 +70,12 @@ Each agent prompt should include:
 ```
 You are working on the Office-Word-MCP-Server project.
 
-REPOSITORY: C:\Users\brandon\.claude\mcp\Office-Word-MCP-Server
-FORK ORIGIN: https://github.com/frastlin/Office-Word-MCP-Server.git
-UPSTREAM: https://github.com/GongRzhe/Office-Word-MCP-Server
+REPOSITORY: <REPO_ROOT> (use repo-relative paths; do NOT paste raw plan file contents into public LLM prompts)
 
-TASK: [Plan title]
-BRANCH: [branch name]
-
-This is a TDD task. Follow this exact sequence:
-1. git checkout -b [branch-name]
-2. If tests/conftest.py does not exist, create it (spec below)
-3. Add pytest config to pyproject.toml if missing
-4. Create the test file with tests from the plan
-5. Run tests to verify they FAIL: uv run pytest [test-file] -v
-6. Implement the fix/feature per the plan
-7. Run tests to verify they PASS: uv run pytest [test-file] -v
-8. Run full test suite: uv run pytest tests/ -v
-9. Stage and commit: git commit -m "[commit message]"
-10. Push: git push -u origin [branch-name]
-11. Create PR: gh pr create --repo GongRzhe/Office-Word-MCP-Server ...
-
---- PLAN ---
-[Paste the full plan file content here]
-
---- CONFTEST.PY SPEC ---
-[Paste 00-shared-test-infrastructure.md content here]
+AGENT_PROMPT_TEMPLATE:
+- Provide a short, sanitized summary of the referenced plan (2-5 bullets or <=200 words).
+- If full file is required, fetch from the repository at a specific commit SHA and ensure redaction of PII and secrets. Only internal/private models may receive full content.
+- Avoid including absolute local user paths.
 ```
 
 ## Open questions / risks

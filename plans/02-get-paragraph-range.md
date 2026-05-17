@@ -15,7 +15,7 @@ There is no way to read multiple paragraphs in a single call. `get_paragraph_tex
 
 ## Repository Info
 
-- **Repository:** `C:\Users\brandon\.claude\mcp\Office-Word-MCP-Server`
+- **Repository:** `<REPO_ROOT>`
 - **Run commands with:** `uv run pytest` (or `python -m pytest` if uv unavailable)
 
 ## Architecture
